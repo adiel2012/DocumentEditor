@@ -47,14 +47,6 @@ class Application {
     }
 
     setupMainToolbar() {
-        // New Document Button
-        const newDocButton = document.getElementById('new-doc');
-        if (newDocButton) {
-            newDocButton.addEventListener('click', () => {
-                this.documentManager.createNewDocument();
-            });
-        }
-
         // Save Document Button
         const saveDocButton = document.getElementById('save-doc');
         if (saveDocButton) {
