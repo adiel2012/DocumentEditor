@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Diagram Tool</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="toolbar">
+        <button class="tool-button" data-tool="select">Select</button>
+        <button class="tool-button" data-tool="rectangle">Rectangle</button>
+        <button class="tool-button" data-tool="text">Text</button>
+        <button class="tool-button" data-tool="image">Image</button>
+        <button class="tool-button" data-tool="line">Line</button>
+        <button class="tool-button" id="delete-button" style="background: #ffebee; border-color: #ffcdd2;">Delete Selected</button>
+    </div>
+    
+    <div id="canvas-container">
+        <div id="canvas"></div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+#toolbar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 200px;
+  height: 100vh;
+  background: #f0f0f0;
+  padding: 20px;
+  border-right: 1px solid #ccc;
+  z-index: 100;
+}
+
+.tool-button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fff;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tool-button:hover {
+  background: #e0e0e0;
+}
+
+#canvas-container {
+  margin-left: 200px;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+#canvas {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  cursor: default;
+  position: relative;
+}
+
+.shape {
+  position: absolute;
+  background: white;
+  border: 2px solid #333;
+  cursor: move;
+  user-select: none;
+  min-width: 100px;
+  min-height: 60px;
+}
+
+.shape.selected {
+  border: 2px solid #2196f3;
+  box-shadow: 0 0 10px rgba(33, 150, 243, 0.3);
+}
+
+.shape.rectangle {
+  min-width: 100px;
+  min-height: 60px;
+}
+
+.shape.text {
+  min-width: 100px;
+  min-height: 30px;
+  border: 1px dashed #ccc;
+  background: transparent;
+  cursor: move;
+}
+
+.shape.text .text-content {
+  cursor: text;
+  outline: none;
+  word-wrap: break-word;
+  padding: 5px;
+  width: 100%;
+  height: 100%;
+}
+
+.shape.text:focus-within {
+  border: 1px dashed #666;
+}
+
+.shape.image {
+  min-width: 100px;
+  min-height: 100px;
+}
+
+.shape.image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.resize-handle {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border: 1px solid #333;
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  cursor: se-resize;
+  z-index: 2;
+}
+
+.connection-point {
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1px solid #333;
+  border-radius: 50%;
+  position: absolute;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.connection-point[data-position="top"] {
+  top: -4px;
+  left: calc(50% - 4px);
+}
+
+.connection-point[data-position="right"] {
+  right: -4px;
+  top: calc(50% - 4px);
+}
+
+.connection-point[data-position="bottom"] {
+  bottom: -4px;
+  left: calc(50% - 4px);
+}
+
+.connection-point[data-position="left"] {
+  left: -4px;
+  top: calc(50% - 4px);
+}
+
+/* SVG line styles */
+svg {
+  pointer-events: none;
+}
+
+svg path {
+  pointer-events: none;
+  stroke: #333;
+  stroke-width: 2;
+  fill: none;
+}
