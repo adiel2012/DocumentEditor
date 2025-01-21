@@ -43,11 +43,34 @@ export class LineManager {
     removeLine(line) {
         if (!line) return;
         
+        // If line is a path element, find the corresponding line object
+        if (line instanceof SVGPathElement) {
+            line = this.lines.find(l => l.element === line);
+        }
+        
         const index = this.lines.findIndex(l => l === line);
         if (index !== -1) {
-            line.element.remove();
+            this.lines[index].element.remove();
             this.lines.splice(index, 1);
         }
+    }
+
+    removeConnectedLines(shape) {
+        if (!shape) return;
+        
+        const connectedLines = this.lines.filter(line => {
+            const element = line.element;
+            const box = shape.getBoundingClientRect();
+            const startInBox = this.isPointInBox(line.startX, line.startY, box);
+            const endInBox = this.isPointInBox(line.endX, line.endY, box);
+            return startInBox || endInBox;
+        });
+
+        connectedLines.forEach(line => this.removeLine(line));
+    }
+
+    isPointInBox(x, y, box) {
+        return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
     }
 
     updateLine(line, startX, startY, endX, endY) {
@@ -60,5 +83,17 @@ export class LineManager {
         line.startY = startY;
         line.endX = endX;
         line.endY = endY;
+    }
+
+    updateAllLines() {
+        this.lines.forEach(line => {
+            this.updateLine(
+                line,
+                line.startX,
+                line.startY,
+                line.endX,
+                line.endY
+            );
+        });
     }
 }

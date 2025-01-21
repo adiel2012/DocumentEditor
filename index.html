@@ -3,23 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Diagram Tool</title>
+    <title>Diagram Tool - MDI</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div id="toolbar">
-        <button class="tool-button" data-tool="select">Select</button>
-        <button class="tool-button" data-tool="rectangle">Rectangle</button>
-        <button class="tool-button" data-tool="text">Text</button>
-        <button class="tool-button" data-tool="image">Image</button>
-        <button class="tool-button" data-tool="line">Line</button>
-        <button class="tool-button" id="delete-button" style="background: #ffebee; border-color: #ffcdd2;">Delete Selected</button>
-    </div>
-    
-    <div id="canvas-container">
-        <div id="canvas"></div>
-    </div>
+    <div id="app">
+        <!-- Top Toolbar -->
+        <div id="main-toolbar">
+            <div class="toolbar-group">
+                <button class="main-button" id="new-doc">New</button>
+                <button class="main-button" id="save-doc">Save</button>
+            </div>
+        </div>
 
+        <!-- Drawing Tools -->
+        <div id="drawing-toolbar">
+            <button class="tool-button" data-tool="select">Select</button>
+            <button class="tool-button" data-tool="rectangle">Rectangle</button>
+            <button class="tool-button" data-tool="text">Text</button>
+            <button class="tool-button" data-tool="image">Image</button>
+            <button class="tool-button" data-tool="line">Line</button>
+            <button class="tool-button" id="delete-button">Delete</button>
+        </div>
+
+        <!-- Tabs Bar -->
+        <div id="tabs-bar"></div>
+
+        <!-- Documents Container -->
+        <div id="documents-container"></div>
+    </div>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
