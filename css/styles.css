@@ -157,3 +157,14 @@ svg path {
   stroke-width: 2;
   fill: none;
 }
+
+
+.connection-point:hover {
+  transform: scale(1.2);
+  background: #e3f2fd;
+}
+
+/* Make connection points more visible when line tool is selected */
+.line-tool-active .connection-point {
+  border-color: #2196f3;
+}

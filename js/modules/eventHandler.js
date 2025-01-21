@@ -13,7 +13,7 @@ export class EventHandler {
                 if (button.id === 'delete-button') {
                     this.tool.deleteSelectedElement();
                 } else {
-                    this.tool.currentTool = button.dataset.tool;
+                    this.tool.setCurrentTool(button.dataset.tool);
                     this.tool.deselectAll();
                 }
             });
@@ -37,14 +37,6 @@ export class EventHandler {
             return;
         }
 
-        // Handle line drawing start
-        if (this.tool.currentTool === 'line') {
-            if (target.classList.contains('connection-point')) {
-                this.startLineDrawing(e, target);
-            }
-            return;
-        }
-
         if (target.classList.contains('resize-handle')) {
             this.startResizing(e, target);
             return;
@@ -52,20 +44,20 @@ export class EventHandler {
 
         if (this.tool.currentTool === 'select') {
             this.handleSelectionClick(e, target);
+        } else if (this.tool.currentTool === 'line') {
+            if (target === this.tool.canvas) {
+                this.startLineDrawing(e);
+            }
         } else if (['rectangle', 'text', 'image'].includes(this.tool.currentTool)) {
             this.handleShapeCreation(e, target);
         }
     }
 
-    startLineDrawing(e, target) {
-        const rect = target.getBoundingClientRect();
-        const canvasRect = this.tool.canvas.getBoundingClientRect();
-        
+    startLineDrawing(e) {
+        const rect = this.tool.canvas.getBoundingClientRect();
         this.tool.isDrawingLine = true;
-        this.tool.lineStartElement = target.parentElement;
-        this.tool.lineStartPoint = target;
-        this.tool.lineStartX = rect.left + rect.width/2 - canvasRect.left;
-        this.tool.lineStartY = rect.top + rect.height/2 - canvasRect.top;
+        this.tool.lineStartX = e.clientX - rect.left;
+        this.tool.lineStartY = e.clientY - rect.top;
     }
 
     startResizing(e, target) {
@@ -111,7 +103,26 @@ export class EventHandler {
         }
 
         if (this.tool.isDrawingLine) {
-            this.handleLineDrawing(e);
+            const rect = this.tool.canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+
+            if (this.tool.temporaryLine) {
+                this.tool.lineManager.updateLine(
+                    this.tool.temporaryLine,
+                    this.tool.lineStartX,
+                    this.tool.lineStartY,
+                    endX,
+                    endY
+                );
+            } else {
+                this.tool.temporaryLine = this.tool.lineManager.createLine(
+                    this.tool.lineStartX,
+                    this.tool.lineStartY,
+                    endX,
+                    endY
+                );
+            }
         }
     }
 
@@ -122,9 +133,6 @@ export class EventHandler {
         
         this.tool.selectedElement.style.left = `${x}px`;
         this.tool.selectedElement.style.top = `${y}px`;
-
-        // Update connected lines
-        this.tool.lineManager.updateConnectedLines(this.tool.selectedElement);
     }
 
     handleResizing(e) {
@@ -136,72 +144,29 @@ export class EventHandler {
         
         this.tool.selectedElement.style.width = `${newWidth}px`;
         this.tool.selectedElement.style.height = `${newHeight}px`;
-
-        // Update connected lines when resizing
-        this.tool.lineManager.updateConnectedLines(this.tool.selectedElement);
-    }
-
-    handleLineDrawing(e) {
-        const canvasRect = this.tool.canvas.getBoundingClientRect();
-        const endX = e.clientX - canvasRect.left;
-        const endY = e.clientY - canvasRect.top;
-
-        if (this.tool.temporaryLine) {
-            this.tool.lineManager.updateLine(
-                this.tool.temporaryLine,
-                this.tool.lineStartX,
-                this.tool.lineStartY,
-                endX,
-                endY
-            );
-        } else {
-            this.tool.temporaryLine = this.tool.lineManager.createLine(
-                this.tool.lineStartX,
-                this.tool.lineStartY,
-                endX,
-                endY
-            );
-        }
     }
 
     handleMouseUp(e) {
-        const target = e.target;
-
-        // Handle line completion
         if (this.tool.isDrawingLine) {
-            if (target.classList.contains('connection-point') && target !== this.tool.lineStartPoint) {
-                const rect = target.getBoundingClientRect();
-                const canvasRect = this.tool.canvas.getBoundingClientRect();
-                const endX = rect.left + rect.width/2 - canvasRect.left;
-                const endY = rect.top + rect.height/2 - canvasRect.top;
+            const rect = this.tool.canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
 
-                if (this.tool.temporaryLine) {
-                    // Update the final position of the line
-                    this.tool.lineManager.updateLine(
-                        this.tool.temporaryLine,
-                        this.tool.lineStartX,
-                        this.tool.lineStartY,
-                        endX,
-                        endY
-                    );
-
-                    // Store connection information
-                    this.tool.temporaryLine.startElement = this.tool.lineStartElement;
-                    this.tool.temporaryLine.endElement = target.parentElement;
-                    this.tool.temporaryLine.startPoint = this.tool.lineStartPoint;
-                    this.tool.temporaryLine.endPoint = target;
-                }
-            } else if (this.tool.temporaryLine) {
-                // If not connecting to a valid point, remove the temporary line
-                this.tool.lineManager.removeLine(this.tool.temporaryLine);
+            if (this.tool.temporaryLine) {
+                // Update final position
+                this.tool.lineManager.updateLine(
+                    this.tool.temporaryLine,
+                    this.tool.lineStartX,
+                    this.tool.lineStartY,
+                    endX,
+                    endY
+                );
+                this.tool.temporaryLine = null;
             }
         }
 
-        // Reset all states
         this.tool.isDrawingLine = false;
         this.tool.isDragging = false;
         this.tool.isResizing = false;
-        this.tool.temporaryLine = null;
-        this.tool.lineStartPoint = null;
     }
 }

@@ -19,6 +19,16 @@ export class DiagramTool {
         this.eventHandler = new EventHandler(this);
     }
 
+    setCurrentTool(tool) {
+        this.currentTool = tool;
+        // Add visual feedback for line tool
+        if (tool === 'line') {
+            this.canvas.classList.add('line-tool-active');
+        } else {
+            this.canvas.classList.remove('line-tool-active');
+        }
+    }
+
     createShape(x, y) {
         const shape = ShapeFactory.createShape(this.currentTool, x, y);
         this.canvas.appendChild(shape);
