@@ -81,6 +81,7 @@ class DiagramTool {
     }
 
     setCurrentTool(tool) {
+        console.log('Setting current tool:', tool);
         this.currentTool = tool;
         
         // Update UI state
@@ -101,9 +102,16 @@ class DiagramTool {
         }
     }
 
-    createShape(x, y) {
+    createShape(x, y, type = null) {
+        const actualType = type || this.currentTool;
+        console.log('Creating shape of type:', actualType);
         const snapped = this.gridHelper.snapPosition(x, y);
-        const shape = ShapeFactory.createShape(this.currentTool, snapped.x, snapped.y);
+        const shape = ShapeFactory.createShape(actualType, snapped.x, snapped.y);
+        
+        if (!shape) {
+            console.error('Failed to create shape of type:', actualType);
+            return null;
+        }
         
         this.canvas.appendChild(shape);
         this.elements.push(shape);
@@ -113,7 +121,6 @@ class DiagramTool {
     }
 
     selectElement(element) {
-        // Deselect any selected line first
         if (this.lineManager) {
             this.lineManager.selectLine(null);
         }
@@ -134,7 +141,6 @@ class DiagramTool {
         }
         this.selectedElement = null;
 
-        // Also deselect any selected line
         if (this.lineManager) {
             this.lineManager.selectLine(null);
         }
@@ -144,10 +150,8 @@ class DiagramTool {
         if (!this.selectedElement) return;
 
         if (this.selectedElement instanceof SVGPathElement) {
-            // Delete line
             this.lineManager.removeLine(this.selectedElement);
         } else {
-            // Delete shape and connected lines
             this.lineManager.removeConnectedLines(this.selectedElement);
             const index = this.elements.indexOf(this.selectedElement);
             if (index > -1) {
@@ -167,7 +171,6 @@ class DiagramTool {
         element.style.left = `${snapped.x}px`;
         element.style.top = `${snapped.y}px`;
         
-        // Update connected lines
         this.lineManager.updateConnectedLines(element);
         this.hasUnsavedChanges = true;
     }
@@ -182,134 +185,181 @@ class DiagramTool {
         element.style.width = `${finalWidth}px`;
         element.style.height = `${finalHeight}px`;
         
-        // Update connected lines
         this.lineManager.updateConnectedLines(element);
         this.hasUnsavedChanges = true;
     }
 
     handleResize() {
-        // Update SVG container and lines when canvas is resized
         if (this.lineManager) {
             this.lineManager.updateAllLines();
         }
     }
 
     async getSerializableData() {
-        // Create a promise array for processing images
-        const imageProcessingPromises = this.elements.map(async element => {
-            if (element.classList.contains('text')) {
-                return {
-                    type: 'text',
-                    x: parseInt(element.style.left),
-                    y: parseInt(element.style.top),
-                    width: element.offsetWidth,
-                    height: element.offsetHeight,
-                    content: element.querySelector('.text-content').innerText
-                };
-            } else if (element.classList.contains('image')) {
-                const img = element.querySelector('img');
-                // Check if image is the default placeholder
-                if (img.src.startsWith('data:image/svg+xml')) {
-                    return {
-                        type: 'image',
-                        x: parseInt(element.style.left),
-                        y: parseInt(element.style.top),
-                        width: element.offsetWidth,
-                        height: element.offsetHeight,
-                        content: null // No image uploaded yet
-                    };
-                }
-                
-                // Convert image to base64 if it's not already
-                if (!img.src.startsWith('data:')) {
-                    try {
-                        const response = await fetch(img.src);
-                        const blob = await response.blob();
-                        const base64 = await new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result);
-                            reader.readAsDataURL(blob);
-                        });
+        try {
+            console.log('Starting serialization of diagram data');
+            // Create a promise array for processing images
+            const imageProcessingPromises = this.elements.map(async element => {
+                try {
+                    if (element.classList.contains('text')) {
+                        const textContent = element.querySelector('.text-content');
+                        return {
+                            type: 'text',
+                            x: parseInt(element.style.left),
+                            y: parseInt(element.style.top),
+                            width: element.offsetWidth,
+                            height: element.offsetHeight,
+                            content: textContent ? textContent.innerText : ''
+                        };
+                    } else if (element.classList.contains('image')) {
+                        const img = element.querySelector('img');
+                        if (!img) {
+                            console.log('No image element found');
+                            return null;
+                        }
+                        // Check if image is the default placeholder
+                        if (img.src.startsWith('data:image/svg+xml')) {
+                            return {
+                                type: 'image',
+                                x: parseInt(element.style.left),
+                                y: parseInt(element.style.top),
+                                width: element.offsetWidth,
+                                height: element.offsetHeight,
+                                content: null // No image uploaded yet
+                            };
+                        }
+                        
+                        // Convert image to base64 if it's not already
+                        if (!img.src.startsWith('data:')) {
+                            try {
+                                const response = await fetch(img.src);
+                                const blob = await response.blob();
+                                const base64 = await new Promise((resolve) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => resolve(reader.result);
+                                    reader.readAsDataURL(blob);
+                                });
+                                return {
+                                    type: 'image',
+                                    x: parseInt(element.style.left),
+                                    y: parseInt(element.style.top),
+                                    width: element.offsetWidth,
+                                    height: element.offsetHeight,
+                                    content: base64
+                                };
+                            } catch (error) {
+                                console.error('Error converting image to base64:', error);
+                                return null;
+                            }
+                        }
                         return {
                             type: 'image',
                             x: parseInt(element.style.left),
                             y: parseInt(element.style.top),
                             width: element.offsetWidth,
                             height: element.offsetHeight,
-                            content: base64
+                            content: img.src
                         };
-                    } catch (error) {
-                        console.error('Error converting image to base64:', error);
-                        return null;
+                    } else if (element.classList.contains('rectangle')) {
+                        return {
+                            type: 'rectangle',
+                            x: parseInt(element.style.left),
+                            y: parseInt(element.style.top),
+                            width: element.offsetWidth,
+                            height: element.offsetHeight
+                        };
                     }
+                    return null;
+                } catch (error) {
+                    console.error('Error processing element:', error);
+                    return null;
                 }
-                return {
-                    type: 'image',
-                    x: parseInt(element.style.left),
-                    y: parseInt(element.style.top),
-                    width: element.offsetWidth,
-                    height: element.offsetHeight,
-                    content: img.src
-                };
-            } else {
-                return {
-                    type: 'rectangle',
-                    x: parseInt(element.style.left),
-                    y: parseInt(element.style.top),
-                    width: element.offsetWidth,
-                    height: element.offsetHeight
-                };
-            }
-        });
+            });
 
-        // Wait for all image processing to complete
-        const elements = await Promise.all(imageProcessingPromises);
+            // Wait for all image processing to complete
+            const elements = await Promise.all(imageProcessingPromises);
+            console.log('Elements processed:', elements.length);
 
-        return {
-            elements: elements.filter(el => el !== null),
-            lines: this.lineManager.getSerializableLines()
-        };
+            return {
+                elements: elements.filter(el => el !== null),
+                lines: this.lineManager.getSerializableLines()
+            };
+        } catch (error) {
+            console.error('Error in getSerializableData:', error);
+            throw error;
+        }
     }
 
     loadFromData(data) {
-        // Clear existing elements
-        this.elements.forEach(element => element.remove());
-        this.elements = [];
-        this.lineManager.clearAllLines();
+        try {
+            console.log('Starting loadFromData with data:', data);
 
-        // Load shapes
-        data.elements.forEach(elementData => {
-            const shape = this.createShape(elementData.x, elementData.y);
-            shape.style.width = `${elementData.width}px`;
-            shape.style.height = `${elementData.height}px`;
+            // Clear existing elements
+            this.elements.forEach(element => element.remove());
+            this.elements = [];
+            this.lineManager.clearAllLines();
 
-            if (elementData.content) {
-                if (elementData.type === 'text') {
-                    shape.querySelector('.text-content').innerText = elementData.content;
-                } else if (elementData.type === 'image') {
-                    const img = shape.querySelector('img');
-                    if (img && elementData.content) {
-                        img.src = elementData.content;
+            // Load shapes
+            data.elements.forEach((elementData, index) => {
+                try {
+                    console.log(`Processing element ${index}:`, elementData);
+                    const shape = this.createShape(elementData.x, elementData.y, elementData.type);
+                    if (!shape) {
+                        console.error(`Failed to create shape for element ${index}`);
+                        return;
                     }
+                    
+                    shape.style.width = `${elementData.width}px`;
+                    shape.style.height = `${elementData.height}px`;
+
+                    if (elementData.content !== null && elementData.content !== undefined) {
+                        if (elementData.type === 'text') {
+                            const textContent = shape.querySelector('.text-content');
+                            if (textContent) {
+                                textContent.innerText = elementData.content;
+                            } else {
+                                console.error(`Text content element not found for element ${index}`);
+                            }
+                        } else if (elementData.type === 'image') {
+                            const img = shape.querySelector('img');
+                            if (img && elementData.content) {
+                                img.src = elementData.content;
+                            } else {
+                                console.error(`Image element not found for element ${index}`);
+                            }
+                        }
+                    }
+                } catch (elementError) {
+                    console.error(`Error processing element ${index}:`, elementError);
                 }
+            });
+
+            // Load lines
+            if (data.lines) {
+                console.log('Processing lines:', data.lines);
+                data.lines.forEach((lineData, index) => {
+                    try {
+                        this.lineManager.createLine(
+                            lineData.startX,
+                            lineData.startY,
+                            lineData.endX,
+                            lineData.endY
+                        );
+                    } catch (lineError) {
+                        console.error(`Error processing line ${index}:`, lineError);
+                    }
+                });
             }
-        });
 
-        // Load lines
-        data.lines.forEach(lineData => {
-            this.lineManager.createLine(
-                lineData.startX,
-                lineData.startY,
-                lineData.endX,
-                lineData.endY
-            );
-        });
-
-        this.hasUnsavedChanges = false;
+            this.hasUnsavedChanges = false;
+            console.log('Successfully loaded data');
+        } catch (error) {
+            console.error('Error in loadFromData:', error);
+            throw error;
+        }
     }
 
     cleanup() {
-        // Remove event listeners and clean up resources
         if (this.eventHandler && typeof this.eventHandler.cleanup === 'function') {
             this.eventHandler.cleanup();
         }
@@ -321,7 +371,6 @@ class DiagramTool {
         this.elements.forEach(element => element.remove());
         this.elements = [];
         
-        // Clear all state
         this.selectedElement = null;
         this.temporaryLine = null;
         this.isDragging = false;

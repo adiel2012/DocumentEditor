@@ -24,11 +24,18 @@ class Application {
     }
 
     setupKeyboardShortcuts() {
-        const handleKeyDown = (e) => {
+        const handleKeyDown = async (e) => {
             // Ctrl + N: New Document
             if (e.ctrlKey && e.key === 'n') {
                 e.preventDefault();
                 this.documentManager.createNewDocument();
+            }
+
+            // Ctrl + O: Open Document
+            if (e.ctrlKey && e.key === 'o') {
+                e.preventDefault();
+                const fileInput = document.getElementById('file-input');
+                if (fileInput) fileInput.click();
             }
 
             // Ctrl + S: Save Document
@@ -64,6 +71,12 @@ class Application {
                 this.documentManager.createNewDocument();
             });
             newButton.title = 'New Document (Ctrl+N)';
+        }
+
+        // Open Document Button
+        const openDocButton = document.getElementById('open-doc');
+        if (openDocButton) {
+            openDocButton.title = 'Open Document (Ctrl+O)';
         }
 
         // Set up tooltips for all toolbar buttons
