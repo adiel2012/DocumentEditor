@@ -16,6 +16,8 @@ class DiagramTool {
         this.isDragging = false;
         this.isDrawingLine = false;
         this.isResizing = false;
+        this.isDraggingLineHandle = false;
+        this.lineHandleDragData = null;
         
         // Selection and interaction
         this.selectedElement = null;
@@ -36,15 +38,30 @@ class DiagramTool {
     }
 
     setupToolbar() {
-        // Add grid toggle button
-        const toolbar = document.getElementById('drawing-toolbar');
-        const gridButton = document.createElement('button');
-        gridButton.className = 'tool-button';
-        gridButton.id = 'grid-toggle';
-        gridButton.textContent = 'Grid';
-        gridButton.title = 'Toggle Grid (G)';
-        gridButton.addEventListener('click', () => this.toggleGrid());
-        toolbar.appendChild(gridButton);
+        // Set up tool buttons
+        document.querySelectorAll('.tool-button[data-tool]').forEach(button => {
+            button.addEventListener('click', () => {
+                const tool = button.dataset.tool;
+                if (tool) {
+                    this.setCurrentTool(tool);
+                }
+            });
+        });
+
+        // Add grid toggle button if not exists
+        let gridButton = document.getElementById('grid-toggle');
+        if (!gridButton) {
+            gridButton = document.createElement('button');
+            gridButton.className = 'tool-button';
+            gridButton.id = 'grid-toggle';
+            gridButton.title = 'Toggle Grid (G)';
+            gridButton.addEventListener('click', () => this.toggleGrid());
+            
+            const toolbar = document.getElementById('drawing-toolbar');
+            if (toolbar) {
+                toolbar.appendChild(gridButton);
+            }
+        }
 
         // Set initial grid state
         this.updateGridButtonState();
@@ -65,6 +82,8 @@ class DiagramTool {
 
     setCurrentTool(tool) {
         this.currentTool = tool;
+        
+        // Update UI state
         if (tool === TOOL_TYPES.LINE) {
             this.canvas.classList.add('line-tool-active');
         } else {
@@ -75,6 +94,11 @@ class DiagramTool {
         document.querySelectorAll('.tool-button[data-tool]').forEach(button => {
             button.classList.toggle('active', button.dataset.tool === tool);
         });
+
+        // Clear selection when changing tools
+        if (tool !== TOOL_TYPES.SELECT) {
+            this.deselectAll();
+        }
     }
 
     createShape(x, y) {
@@ -89,6 +113,11 @@ class DiagramTool {
     }
 
     selectElement(element) {
+        // Deselect any selected line first
+        if (this.lineManager) {
+            this.lineManager.selectLine(null);
+        }
+
         if (this.selectedElement) {
             this.selectedElement.classList.remove('selected');
         }
@@ -104,6 +133,11 @@ class DiagramTool {
             this.selectedElement.classList.remove('selected');
         }
         this.selectedElement = null;
+
+        // Also deselect any selected line
+        if (this.lineManager) {
+            this.lineManager.selectLine(null);
+        }
     }
 
     deleteSelectedElement() {
@@ -135,22 +169,29 @@ class DiagramTool {
         
         // Update connected lines
         this.lineManager.updateConnectedLines(element);
+        this.hasUnsavedChanges = true;
     }
 
     resizeElement(element, width, height) {
         if (!element) return;
         
         const snapped = this.gridHelper.snapDimensions(width, height);
-        element.style.width = `${snapped.width}px`;
-        element.style.height = `${snapped.height}px`;
+        const finalWidth = Math.max(MIN_DIMENSIONS.WIDTH, snapped.width);
+        const finalHeight = Math.max(MIN_DIMENSIONS.HEIGHT, snapped.height);
+        
+        element.style.width = `${finalWidth}px`;
+        element.style.height = `${finalHeight}px`;
         
         // Update connected lines
         this.lineManager.updateConnectedLines(element);
+        this.hasUnsavedChanges = true;
     }
 
     handleResize() {
         // Update SVG container and lines when canvas is resized
-        this.lineManager.updateAllLines();
+        if (this.lineManager) {
+            this.lineManager.updateAllLines();
+        }
     }
 
     getSerializableData() {
@@ -210,9 +251,22 @@ class DiagramTool {
         if (this.eventHandler && typeof this.eventHandler.cleanup === 'function') {
             this.eventHandler.cleanup();
         }
-        this.lineManager.clearAllLines();
+
+        if (this.lineManager && typeof this.lineManager.cleanup === 'function') {
+            this.lineManager.cleanup();
+        }
+
         this.elements.forEach(element => element.remove());
         this.elements = [];
+        
+        // Clear all state
+        this.selectedElement = null;
+        this.temporaryLine = null;
+        this.isDragging = false;
+        this.isDrawingLine = false;
+        this.isResizing = false;
+        this.isDraggingLineHandle = false;
+        this.lineHandleDragData = null;
     }
 }
 

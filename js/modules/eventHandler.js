@@ -38,34 +38,40 @@ export class EventHandler {
         this.tool.canvas.addEventListener('dragstart', (e) => e.preventDefault());
     }
 
-    handleKeyDown(e) {
-        // Delete key - remove selected element
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-            if (!e.target.classList.contains('text-content')) {
-                this.tool.deleteSelectedElement();
+    handleLineSelection(e, target) {
+        if (target.tagName === 'path') {
+            const line = this.tool.lineManager.lines.find(l => l.element === target);
+            if (line) {
+                this.tool.lineManager.selectLine(line);
+                this.tool.selectedElement = target; // For delete functionality
+            }
+        } else if (target.classList.contains('line-handle')) {
+            const line = Array.from(this.tool.lineManager.lineHandles.entries())
+                .find(([_, handles]) => handles.start === target || handles.end === target)?.[0];
+                
+            if (line) {
+                this.startLineHandleDrag(e, line, target.classList.contains('start-handle'));
             }
         }
+    }
 
-        // Escape key - deselect and reset tool to select
-        if (e.key === 'Escape') {
-            this.tool.deselectAll();
-            this.tool.setCurrentTool(TOOL_TYPES.SELECT);
-        }
+    startLineHandleDrag(e, line, isStart) {
+        this.tool.isDraggingLineHandle = true;
+        this.tool.lineHandleDragData = {
+            line,
+            isStart,
+            initialX: isStart ? line.startX : line.endX,
+            initialY: isStart ? line.startY : line.endY
+        };
+    }
 
-        // Grid toggle with 'G' key
-        if (e.key.toLowerCase() === 'g' && !e.target.classList.contains('text-content')) {
-            this.tool.toggleGrid();
-        }
-
-        // Tool shortcuts (when not editing text)
-        if (!e.target.classList.contains('text-content')) {
-            switch (e.key.toLowerCase()) {
-                case 'v': this.tool.setCurrentTool(TOOL_TYPES.SELECT); break;
-                case 'r': this.tool.setCurrentTool(TOOL_TYPES.RECTANGLE); break;
-                case 't': this.tool.setCurrentTool(TOOL_TYPES.TEXT); break;
-                case 'i': this.tool.setCurrentTool(TOOL_TYPES.IMAGE); break;
-                case 'l': this.tool.setCurrentTool(TOOL_TYPES.LINE); break;
-            }
+    handleShapeCreation(e, target) {
+        if (target === this.tool.canvas) {
+            const rect = this.tool.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const newShape = this.tool.createShape(x, y);
+            this.tool.selectElement(newShape);
         }
     }
 
@@ -74,6 +80,12 @@ export class EventHandler {
 
         // Ignore if clicking within text content
         if (target.classList.contains('text-content')) {
+            return;
+        }
+
+        // Handle line and handle selection
+        if (target.tagName === 'path' || target.classList.contains('line-handle')) {
+            this.handleLineSelection(e, target);
             return;
         }
 
@@ -104,6 +116,11 @@ export class EventHandler {
             case TOOL_TYPES.IMAGE:
                 this.handleShapeCreation(e, target);
                 break;
+        }
+
+        // Deselect any selected line if clicking elsewhere
+        if (target === this.tool.canvas) {
+            this.tool.lineManager.selectLine(null);
         }
     }
 
@@ -172,18 +189,24 @@ export class EventHandler {
         this.tool.lineStartY = e.clientY - rect.top;
     }
 
-    handleShapeCreation(e, target) {
-        if (target === this.tool.canvas) {
-            const rect = this.tool.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const newShape = this.tool.createShape(x, y);
-            this.tool.selectElement(newShape);
-        }
-    }
-
     handleMouseMove(e) {
         const rect = this.tool.canvas.getBoundingClientRect();
+
+        // Handle line handle dragging
+        if (this.tool.isDraggingLineHandle && this.tool.lineHandleDragData) {
+            const { line, isStart } = this.tool.lineHandleDragData;
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const snapped = this.tool.gridHelper.snapPosition(x, y);
+            
+            if (isStart) {
+                this.tool.lineManager.updateLine(line, snapped.x, snapped.y, line.endX, line.endY);
+            } else {
+                this.tool.lineManager.updateLine(line, line.startX, line.startY, snapped.x, snapped.y);
+            }
+            return;
+        }
 
         // Handle dragging
         if (this.tool.isDragging && this.tool.selectedElement) {
@@ -227,6 +250,7 @@ export class EventHandler {
     }
 
     handleMouseUp(e) {
+        // Handle line drawing completion
         if (this.tool.isDrawingLine) {
             const rect = this.tool.canvas.getBoundingClientRect();
             const endX = e.clientX - rect.left;
@@ -245,10 +269,45 @@ export class EventHandler {
             }
         }
 
+        // Reset line handle dragging state
+        this.tool.isDraggingLineHandle = false;
+        this.tool.lineHandleDragData = null;
+
         // Reset all interaction states
         this.tool.isDrawingLine = false;
         this.tool.isDragging = false;
         this.tool.isResizing = false;
+    }
+
+    handleKeyDown(e) {
+        // Delete key - remove selected element
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (!e.target.classList.contains('text-content')) {
+                this.tool.deleteSelectedElement();
+            }
+        }
+
+        // Escape key - deselect and reset tool to select
+        if (e.key === 'Escape') {
+            this.tool.deselectAll();
+            this.tool.setCurrentTool(TOOL_TYPES.SELECT);
+        }
+
+        // Grid toggle with 'G' key
+        if (e.key.toLowerCase() === 'g' && !e.target.classList.contains('text-content')) {
+            this.tool.toggleGrid();
+        }
+
+        // Tool shortcuts (when not editing text)
+        if (!e.target.classList.contains('text-content')) {
+            switch (e.key.toLowerCase()) {
+                case 'v': this.tool.setCurrentTool(TOOL_TYPES.SELECT); break;
+                case 'r': this.tool.setCurrentTool(TOOL_TYPES.RECTANGLE); break;
+                case 't': this.tool.setCurrentTool(TOOL_TYPES.TEXT); break;
+                case 'i': this.tool.setCurrentTool(TOOL_TYPES.IMAGE); break;
+                case 'l': this.tool.setCurrentTool(TOOL_TYPES.LINE); break;
+            }
+        }
     }
 
     cleanup() {
