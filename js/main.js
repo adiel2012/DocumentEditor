@@ -2,11 +2,13 @@ import { DocumentManager } from './modules/documentManager.js';
 
 class Application {
     constructor() {
+        console.log('Application constructor called');
         this.documentManager = null;
         this.init();
     }
 
     init() {
+        console.log('Initializing application');
         // Initialize document manager
         this.documentManager = new DocumentManager();
 
@@ -18,10 +20,11 @@ class Application {
 
         // Set up main toolbar actions
         this.setupMainToolbar();
+        console.log('Application initialization complete');
     }
 
     setupKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
+        const handleKeyDown = (e) => {
             // Ctrl + N: New Document
             if (e.ctrlKey && e.key === 'n') {
                 e.preventDefault();
@@ -32,7 +35,7 @@ class Application {
             if (e.ctrlKey && e.key === 's') {
                 e.preventDefault();
                 if (this.documentManager.activeDocument) {
-                    this.documentManager.saveDocument(this.documentManager.activeDocument.id);
+                    await this.documentManager.saveDocument(this.documentManager.activeDocument.id);
                 }
             }
 
@@ -43,21 +46,24 @@ class Application {
                     this.documentManager.closeDocument(this.documentManager.activeDocument.id);
                 }
             }
-        });
+        };
+
+        // Remove any existing listeners and add new one
+        document.removeEventListener('keydown', handleKeyDown);
+        document.addEventListener('keydown', handleKeyDown);
     }
 
     setupMainToolbar() {
-        // Save Document Button
-        const saveDocButton = document.getElementById('save-doc');
-        if (saveDocButton) {
-            saveDocButton.addEventListener('click', () => {
-                if (this.documentManager.activeDocument) {
-                    this.documentManager.saveDocument(this.documentManager.activeDocument.id);
-                }
+        // New Document Button
+        const newDocButton = document.getElementById('new-doc');
+        if (newDocButton) {
+            const newButton = newDocButton.cloneNode(true);
+            newDocButton.parentNode.replaceChild(newButton, newDocButton);
+            
+            newButton.addEventListener('click', () => {
+                this.documentManager.createNewDocument();
             });
-
-            // Add tooltip or title
-            saveDocButton.title = 'Save Document (Ctrl+S)';
+            newButton.title = 'New Document (Ctrl+N)';
         }
 
         // Set up tooltips for all toolbar buttons
@@ -80,11 +86,28 @@ class Application {
         };
         return tooltips[tool] || tool;
     }
+
+    cleanup() {
+        // Cleanup document manager
+        if (this.documentManager) {
+            this.documentManager.cleanup();
+        }
+
+        // Remove event listeners
+        document.removeEventListener('keydown', this.setupKeyboardShortcuts);
+    }
 }
 
 // Initialize the application when the DOM is loaded
+let app = null;
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new Application();
+    console.log('DOMContentLoaded - creating application instance');
+    if (app) {
+        console.warn('Application instance already exists!');
+        return;
+    }
+    app = new Application();
+    window.app = app; // Make app accessible globally if needed
 });
 
 // Prevent browser's default file drag behavior
@@ -97,21 +120,30 @@ document.addEventListener('drop', (e) => {
 });
 
 // Handle window resize
+let resizeTimeout = null;
 window.addEventListener('resize', () => {
-    if (window.app && window.app.documentManager) {
-        // Update active document if needed
-        const activeDoc = window.app.documentManager.activeDocument;
-        if (activeDoc && activeDoc.diagram) {
-            activeDoc.diagram.handleResize();
-        }
+    // Debounce resize events
+    if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
     }
+    
+    resizeTimeout = setTimeout(() => {
+        if (app && app.documentManager) {
+            // Update active document if needed
+            const activeDoc = app.documentManager.activeDocument;
+            if (activeDoc && activeDoc.diagram) {
+                activeDoc.diagram.handleResize();
+            }
+        }
+        resizeTimeout = null;
+    }, 100);
 });
 
 // Handle browser closing
 window.addEventListener('beforeunload', (e) => {
-    if (window.app && window.app.documentManager) {
+    if (app && app.documentManager) {
         // Check for unsaved changes
-        const hasUnsavedChanges = Array.from(window.app.documentManager.documents.values())
+        const hasUnsavedChanges = Array.from(app.documentManager.documents.values())
             .some(doc => doc.diagram && doc.diagram.hasUnsavedChanges);
 
         if (hasUnsavedChanges) {
@@ -119,5 +151,12 @@ window.addEventListener('beforeunload', (e) => {
             e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
             return e.returnValue;
         }
+    }
+});
+
+// Handle cleanup when window unloads
+window.addEventListener('unload', () => {
+    if (app) {
+        app.cleanup();
     }
 });

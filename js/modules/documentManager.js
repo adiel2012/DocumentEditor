@@ -26,17 +26,58 @@ export class DocumentManager {
         // Save document button
         const saveDocButton = document.getElementById('save-doc');
         if (saveDocButton) {
-            saveDocButton.addEventListener('click', () => {
-                if (this.activeDocument) {
-                    this.saveDocument(this.activeDocument.id);
+            console.log('Setting up save button handler');
+            const newButton = saveDocButton.cloneNode(true);
+            saveDocButton.parentNode.replaceChild(newButton, saveDocButton);
+            
+            // Use a single click handler
+            const handleSave = async (e) => {
+                console.log('Save button clicked', e.isTrusted ? 'User Click' : 'Programmatic Click');
+                
+                // Prevent handling the same event multiple times
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                // Prevent multiple simultaneous saves
+                if (newButton.disabled) {
+                    console.log('Save already in progress, ignoring');
+                    return;
                 }
-            });
+                
+                if (this.activeDocument) {
+                    await this.saveDocument(this.activeDocument.id);
+                }
+            };
+            
+            // Remove any existing listeners before adding new one
+            newButton.replaceWith(newButton.cloneNode(true));
+            const finalButton = document.getElementById('save-doc');
+            finalButton.addEventListener('click', handleSave);
         }
 
         // Handle tab bar scroll for many tabs
         this.tabsBar.addEventListener('wheel', (e) => {
             e.preventDefault();
             this.tabsBar.scrollLeft += e.deltaY;
+        });
+
+        // Handle file drops
+        this.container.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        this.container.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const files = Array.from(e.dataTransfer.files);
+            const jsonFiles = files.filter(file => file.name.endsWith('.json'));
+            
+            if (jsonFiles.length > 0) {
+                this.loadDocument(jsonFiles[0]);
+            }
         });
     }
 
@@ -207,13 +248,29 @@ export class DocumentManager {
         }
     }
 
-    saveDocument(docId) {
+    async saveDocument(docId) {
+        console.log('saveDocument called with docId:', docId);
         const doc = this.documents.get(docId);
-        if (!doc || !doc.diagram) return;
+        if (!doc || !doc.diagram) {
+            console.log('No document found or no diagram');
+            return;
+        }
+
+        // Get save button and store original text
+        const saveButton = document.getElementById('save-doc');
+        const originalText = saveButton ? saveButton.textContent : 'Save';
+        console.log('Starting save process');
 
         try {
-            // Get diagram data
-            const diagramData = doc.diagram.getSerializableData();
+            // Show loading state
+            if (saveButton) {
+                saveButton.textContent = 'Saving...';
+                saveButton.disabled = true;
+            }
+
+            // Get diagram data (now returns a promise)
+            console.log('Getting diagram data');
+            const diagramData = await doc.diagram.getSerializableData();
             
             // Create blob and download link
             const blob = new Blob([JSON.stringify(diagramData, null, 2)], { type: 'application/json' });
@@ -233,23 +290,36 @@ export class DocumentManager {
             
             // Reset unsaved changes flag
             doc.diagram.hasUnsavedChanges = false;
+
+            // Restore button state
+            if (saveButton) {
+                saveButton.textContent = originalText;
+                saveButton.disabled = false;
+            }
             
         } catch (error) {
             console.error('Error saving document:', error);
             alert('Failed to save document. Please try again.');
+            
+            // Restore button state on error
+            const saveButton = document.getElementById('save-doc');
+            if (saveButton) {
+                saveButton.textContent = 'Save';
+                saveButton.disabled = false;
+            }
         }
     }
 
     loadDocument(file) {
         const reader = new FileReader();
         
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
                 const doc = this.createNewDocument();
                 
                 if (doc && doc.diagram) {
-                    doc.diagram.loadFromData(data);
+                    await doc.diagram.loadFromData(data);
                     doc.name = file.name.replace(/\.json$/, '');
                     doc.tab.querySelector('span:first-child').textContent = doc.name;
                 }
@@ -274,5 +344,23 @@ export class DocumentManager {
         // Create array of IDs first to avoid modifying collection during iteration
         const docIds = Array.from(this.documents.keys());
         docIds.forEach(id => this.closeDocument(id));
+    }
+
+    cleanup() {
+        // Remove event listeners
+        const saveButton = document.getElementById('save-doc');
+        if (saveButton) {
+            const newButton = saveButton.cloneNode(true);
+            saveButton.parentNode.replaceChild(newButton, saveButton);
+        }
+
+        const newDocButton = document.getElementById('new-doc');
+        if (newDocButton) {
+            const newButton = newDocButton.cloneNode(true);
+            newDocButton.parentNode.replaceChild(newButton, newDocButton);
+        }
+
+        // Close all documents
+        this.closeAllDocuments();
     }
 }

@@ -194,20 +194,79 @@ class DiagramTool {
         }
     }
 
-    getSerializableData() {
+    async getSerializableData() {
+        // Create a promise array for processing images
+        const imageProcessingPromises = this.elements.map(async element => {
+            if (element.classList.contains('text')) {
+                return {
+                    type: 'text',
+                    x: parseInt(element.style.left),
+                    y: parseInt(element.style.top),
+                    width: element.offsetWidth,
+                    height: element.offsetHeight,
+                    content: element.querySelector('.text-content').innerText
+                };
+            } else if (element.classList.contains('image')) {
+                const img = element.querySelector('img');
+                // Check if image is the default placeholder
+                if (img.src.startsWith('data:image/svg+xml')) {
+                    return {
+                        type: 'image',
+                        x: parseInt(element.style.left),
+                        y: parseInt(element.style.top),
+                        width: element.offsetWidth,
+                        height: element.offsetHeight,
+                        content: null // No image uploaded yet
+                    };
+                }
+                
+                // Convert image to base64 if it's not already
+                if (!img.src.startsWith('data:')) {
+                    try {
+                        const response = await fetch(img.src);
+                        const blob = await response.blob();
+                        const base64 = await new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.readAsDataURL(blob);
+                        });
+                        return {
+                            type: 'image',
+                            x: parseInt(element.style.left),
+                            y: parseInt(element.style.top),
+                            width: element.offsetWidth,
+                            height: element.offsetHeight,
+                            content: base64
+                        };
+                    } catch (error) {
+                        console.error('Error converting image to base64:', error);
+                        return null;
+                    }
+                }
+                return {
+                    type: 'image',
+                    x: parseInt(element.style.left),
+                    y: parseInt(element.style.top),
+                    width: element.offsetWidth,
+                    height: element.offsetHeight,
+                    content: img.src
+                };
+            } else {
+                return {
+                    type: 'rectangle',
+                    x: parseInt(element.style.left),
+                    y: parseInt(element.style.top),
+                    width: element.offsetWidth,
+                    height: element.offsetHeight
+                };
+            }
+        });
+
+        // Wait for all image processing to complete
+        const elements = await Promise.all(imageProcessingPromises);
+
         return {
-            elements: this.elements.map(element => ({
-                type: element.classList.contains('text') ? 'text' :
-                      element.classList.contains('image') ? 'image' : 'rectangle',
-                x: parseInt(element.style.left),
-                y: parseInt(element.style.top),
-                width: element.offsetWidth,
-                height: element.offsetHeight,
-                content: element.classList.contains('text') ?
-                        element.querySelector('.text-content').innerText :
-                        element.classList.contains('image') ?
-                        element.querySelector('img').src : null
-            })),
+            elements: elements.filter(el => el !== null),
             lines: this.lineManager.getSerializableLines()
         };
     }
@@ -228,7 +287,10 @@ class DiagramTool {
                 if (elementData.type === 'text') {
                     shape.querySelector('.text-content').innerText = elementData.content;
                 } else if (elementData.type === 'image') {
-                    shape.querySelector('img').src = elementData.content;
+                    const img = shape.querySelector('img');
+                    if (img && elementData.content) {
+                        img.src = elementData.content;
+                    }
                 }
             }
         });
