@@ -387,3 +387,37 @@ svg path.in-selection {
   stroke-width: 2;
   stroke-dasharray: 5, 5;
 }
+
+/* Line Handle Styles */
+.line-handle.corner-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border: 1px solid #333;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.line-handle.corner-handle:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  background: #e3f2fd;
+  border-color: #2196f3;
+}
+
+.line-handle.nw-handle {
+  cursor: nw-resize;
+}
+
+.line-handle.ne-handle {
+  cursor: ne-resize;
+}
+
+.line-handle.se-handle {
+  cursor: se-resize;
+}
+
+.line-handle.sw-handle {
+  cursor: sw-resize;
+}
