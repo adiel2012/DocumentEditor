@@ -2,6 +2,7 @@ import { ShapeFactory } from './shapes.js';
 import { LineManager } from './lines.js';
 import { EventHandler } from './eventHandler.js';
 import { GridHelper } from './gridHelper.js';
+import { SelectionManager } from './selectionManager.js';
 import { TOOL_TYPES, MIN_DIMENSIONS } from '../utils/constants.js';
 
 class DiagramTool {
@@ -19,9 +20,13 @@ class DiagramTool {
         this.isDraggingLineHandle = false;
         this.lineHandleDragData = null;
         
+        // Drag tracking
+        this.dragStartPositions = new Map();
+        this.dragStartX = 0;
+        this.dragStartY = 0;
+        
         // Selection and interaction
         this.selectedElement = null;
-        this.dragOffset = { x: 0, y: 0 };
         this.temporaryLine = null;
         
         // Line drawing state
@@ -29,13 +34,15 @@ class DiagramTool {
         this.lineStartY = 0;
         
         // Initialize helpers
-        this.gridHelper = new GridHelper(20, 100); // 20px small grid, 100px large grid
+        this.gridHelper = new GridHelper(20, 100);
         this.lineManager = new LineManager(this.canvas);
+        this.selectionManager = new SelectionManager(this);
         this.eventHandler = new EventHandler(this);
         
         // Initialize UI
         this.setupToolbar();
     }
+    
 
     setupToolbar() {
         // Set up tool buttons
@@ -98,7 +105,7 @@ class DiagramTool {
 
         // Clear selection when changing tools
         if (tool !== TOOL_TYPES.SELECT) {
-            this.deselectAll();
+            this.selectionManager.clearSelection();
         }
     }
 
@@ -121,47 +128,18 @@ class DiagramTool {
     }
 
     selectElement(element) {
-        if (this.lineManager) {
-            this.lineManager.selectLine(null);
-        }
-
-        if (this.selectedElement) {
-            this.selectedElement.classList.remove('selected');
-        }
-        
-        this.selectedElement = element;
-        if (element) {
-            element.classList.add('selected');
-        }
+        // Deprecated - use selectionManager instead
+        this.selectionManager.toggleSelection(element, true);
     }
 
     deselectAll() {
-        if (this.selectedElement) {
-            this.selectedElement.classList.remove('selected');
-        }
-        this.selectedElement = null;
-
-        if (this.lineManager) {
-            this.lineManager.selectLine(null);
-        }
+        // Deprecated - use selectionManager instead
+        this.selectionManager.clearSelection();
     }
 
     deleteSelectedElement() {
-        if (!this.selectedElement) return;
-
-        if (this.selectedElement instanceof SVGPathElement) {
-            this.lineManager.removeLine(this.selectedElement);
-        } else {
-            this.lineManager.removeConnectedLines(this.selectedElement);
-            const index = this.elements.indexOf(this.selectedElement);
-            if (index > -1) {
-                this.elements.splice(index, 1);
-                this.selectedElement.remove();
-            }
-        }
-
-        this.selectedElement = null;
-        this.hasUnsavedChanges = true;
+        // Deprecated - use selectionManager instead
+        this.selectionManager.deleteSelectedElements();
     }
 
     moveElement(element, x, y) {
@@ -298,6 +276,7 @@ class DiagramTool {
             this.elements.forEach(element => element.remove());
             this.elements = [];
             this.lineManager.clearAllLines();
+            this.selectionManager.clearSelection();
 
             // Load shapes
             data.elements.forEach((elementData, index) => {
@@ -366,6 +345,10 @@ class DiagramTool {
 
         if (this.lineManager && typeof this.lineManager.cleanup === 'function') {
             this.lineManager.cleanup();
+        }
+
+        if (this.selectionManager && typeof this.selectionManager.cleanup === 'function') {
+            this.selectionManager.cleanup();
         }
 
         this.elements.forEach(element => element.remove());

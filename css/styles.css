@@ -356,3 +356,34 @@ svg path.selected {
 ::-webkit-scrollbar-thumb:hover {
   background: #666;
 }
+
+.selection-box {
+  position: absolute;
+  border: 1px dashed #2196f3;
+  background-color: rgba(33, 150, 243, 0.1);
+  pointer-events: none;
+  display: none;
+  z-index: 1000;
+}
+
+.shape.selected {
+  border: 2px solid #2196f3;
+  box-shadow: 0 0 10px rgba(33, 150, 243, 0.3);
+}
+
+.shape.in-selection {
+  border: 2px dashed #2196f3;
+  box-shadow: 0 0 5px rgba(33, 150, 243, 0.2);
+}
+
+/* Line selection styles */
+svg path.selected {
+  stroke: #2196f3;
+  stroke-width: 3;
+}
+
+svg path.in-selection {
+  stroke: #2196f3;
+  stroke-width: 2;
+  stroke-dasharray: 5, 5;
+}
