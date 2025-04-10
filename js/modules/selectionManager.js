@@ -91,19 +91,48 @@ export class SelectionManager {
             }
         });
  
-        // Check lines
+        // Check lines - improved to better detect line selection
         this.tool.lineManager.lines.forEach(line => {
-            const lineBounds = {
-                left: Math.min(line.startX, line.endX),
-                right: Math.max(line.startX, line.endX),
-                top: Math.min(line.startY, line.endY),
-                bottom: Math.max(line.startY, line.endY)
-            };
- 
-            if (this.isOverlapping(selectionArea, lineBounds)) {
+            // Check if either endpoint is in the selection box
+            const startInBox = this.isPointInRect(line.startX, line.startY, selectionArea);
+            const endInBox = this.isPointInRect(line.endX, line.endY, selectionArea);
+            
+            // Check if line passes through the selection box (basic implementation)
+            const lineIntersects = this.doesLineIntersectRect(
+                line.startX, line.startY, 
+                line.endX, line.endY, 
+                selectionArea
+            );
+            
+            if (startInBox || endInBox || lineIntersects) {
                 line.element.classList.add('in-selection');
             }
         });
+    }
+
+    isPointInRect(x, y, rect) {
+        return (x >= rect.left && x <= rect.right && 
+                y >= rect.top && y <= rect.bottom);
+    }
+
+    // Detect if a line segment intersects with a rectangle
+    doesLineIntersectRect(x1, y1, x2, y2, rect) {
+        // Check if line intersects any of the rectangle edges
+        return this.lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.top, rect.right, rect.top) ||
+               this.lineIntersectsLine(x1, y1, x2, y2, rect.right, rect.top, rect.right, rect.bottom) ||
+               this.lineIntersectsLine(x1, y1, x2, y2, rect.right, rect.bottom, rect.left, rect.bottom) ||
+               this.lineIntersectsLine(x1, y1, x2, y2, rect.left, rect.bottom, rect.left, rect.top);
+    }
+
+    // Check if two line segments intersect
+    lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
+        const d = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (d === 0) return false;
+        
+        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / d;
+        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / d;
+        
+        return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
     }
  
     isOverlapping(rect1, rect2) {
@@ -132,6 +161,15 @@ export class SelectionManager {
         
         this.selectedElements.add(element);
         element.classList.add('selected');
+        
+        // If element is a line (SVG path), show its handles
+        if (element instanceof SVGPathElement) {
+            const line = this.tool.lineManager.getLineByElement(element);
+            if (line) {
+                this.tool.lineManager.selectLine(line);
+            }
+        }
+        
         this.updateSelectionState();
     }
  
@@ -140,6 +178,15 @@ export class SelectionManager {
         
         this.selectedElements.delete(element);
         element.classList.remove('selected');
+        
+        // If element is a line, hide its handles
+        if (element instanceof SVGPathElement) {
+            const line = this.tool.lineManager.getLineByElement(element);
+            if (line && line === this.tool.lineManager.selectedLine) {
+                this.tool.lineManager.selectLine(null);
+            }
+        }
+        
         this.updateSelectionState();
     }
  
@@ -153,6 +200,10 @@ export class SelectionManager {
  
         this.tool.elements.forEach(element => {
             element.classList.remove('in-selection');
+        });
+        
+        this.tool.lineManager.lines.forEach(line => {
+            line.element.classList.remove('in-selection');
         });
     }
  
@@ -180,7 +231,7 @@ export class SelectionManager {
     moveSelectedElements(dx, dy) {
         this.selectedElements.forEach(element => {
             if (element instanceof SVGPathElement) {
-                const line = this.tool.lineManager.lines.find(l => l.element === element);
+                const line = this.tool.lineManager.getLineByElement(element);
                 if (line) {
                     const newStartX = line.startX + dx;
                     const newStartY = line.startY + dy;
@@ -223,6 +274,7 @@ export class SelectionManager {
             }
         });
         this.clearSelection();
+        this.tool.hasUnsavedChanges = true;
     }
  
     cleanup() {
@@ -232,4 +284,4 @@ export class SelectionManager {
             this.selectionBox = null;
         }
     }
- }
+}

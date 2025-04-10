@@ -53,7 +53,7 @@ export class LineManager {
         // Create corner handles
         ['nw', 'ne', 'se', 'sw'].forEach(position => {
             const handle = document.createElement('div');
-            handle.className = `line-handle corner-handle ${position}-handle`;
+            handle.className = `line-handle corner-handle ${position}`;
             handle.id = `handle-${position}-${uniqueId}`;
             handle.style.position = 'absolute';
             handle.style.width = '8px';
@@ -93,14 +93,27 @@ export class LineManager {
         const handles = this.lineHandles.get(line);
         if (!handles) return;
  
-        const bounds = this.getLineBounds(line);
         const isSelected = line === this.selectedLine;
- 
+        
+        // Calculate handle positions based on line's start and end points
+        // This ensures the handles are always positioned at the corners of the line's bounding box
+        const positions = {
+            // For a rotated line, these positions create a bounding box with the line as diagonal
+            nw: { x: line.startX, y: line.startY },
+            se: { x: line.endX, y: line.endY },
+            // These handles create corners perpendicular to the line
+            ne: { x: line.endX, y: line.startY },
+            sw: { x: line.startX, y: line.endY }
+        };
+        
+        // Update handle positions
         Object.entries(handles).forEach(([position, handle]) => {
-            const pos = this.getHandlePosition(position, line);
-            handle.style.left = `${pos.x}px`;
-            handle.style.top = `${pos.y}px`;
-            handle.style.display = isSelected ? 'block' : 'none';
+            const pos = positions[position];
+            if (pos) {
+                handle.style.left = `${pos.x}px`;
+                handle.style.top = `${pos.y}px`;
+                handle.style.display = isSelected ? 'block' : 'none';
+            }
         });
     }
  
@@ -115,21 +128,6 @@ export class LineManager {
         };
     }
  
-    getHandlePosition(position, line) {
-        switch(position) {
-            case 'nw': 
-                return { x: line.startX, y: line.startY };
-            case 'ne': 
-                return { x: line.endX, y: line.startY };
-            case 'se': 
-                return { x: line.endX, y: line.endY };
-            case 'sw': 
-                return { x: line.startX, y: line.endY };
-            default: 
-                return { x: 0, y: 0 };
-        }
-    }
- 
     snapToGrid(value) {
         if (!this.canvas.gridHelper?.enabled) return value;
         const gridSize = this.canvas.gridHelper.gridSize || 20;
@@ -140,6 +138,7 @@ export class LineManager {
         if (this.selectedLine) {
             this.selectedLine.element.setAttribute('stroke-width', '2');
             this.selectedLine.element.setAttribute('stroke', '#333');
+            this.selectedLine.element.classList.remove('selected');
             const handles = this.lineHandles.get(this.selectedLine);
             if (handles) {
                 Object.values(handles).forEach(handle => {
@@ -153,6 +152,7 @@ export class LineManager {
         if (line) {
             line.element.setAttribute('stroke-width', '3');
             line.element.setAttribute('stroke', '#2196f3');
+            line.element.classList.add('selected');
             const handles = this.lineHandles.get(line);
             if (handles) {
                 Object.values(handles).forEach(handle => {
@@ -181,6 +181,18 @@ export class LineManager {
  
         this.updateLineHandles(line);
     }
+    
+    // Move entire line by dx, dy
+    moveLine(line, dx, dy) {
+        if (!line) return;
+        
+        const newStartX = this.snapToGrid(line.startX + dx);
+        const newStartY = this.snapToGrid(line.startY + dy);
+        const newEndX = this.snapToGrid(line.endX + dx);
+        const newEndY = this.snapToGrid(line.endY + dy);
+        
+        this.updateLine(line, newStartX, newStartY, newEndX, newEndY);
+    }
  
     removeLine(line) {
         if (!line) return;
@@ -207,6 +219,9 @@ export class LineManager {
     }
  
     updateConnectedLines(shape) {
+        // This method is kept for backwards compatibility 
+        // but will be less emphasized as lines are becoming independent objects
+        // rather than connectors between shapes
         if (!shape) return;
  
         const shapeRect = shape.getBoundingClientRect();
@@ -311,6 +326,40 @@ export class LineManager {
         this.lines = [];
         this.selectedLine = null;
     }
+    
+    // Find line by its SVG path element
+    getLineByElement(element) {
+        return this.lines.find(line => line.element === element);
+    }
+    
+    // Check if a line handle belongs to a line
+    getLineFromHandle(handle) {
+        for (const [line, handles] of this.lineHandles.entries()) {
+            if (Object.values(handles).includes(handle)) {
+                return { 
+                    line, 
+                    position: Object.keys(handles).find(key => handles[key] === handle)
+                };
+            }
+        }
+        return null;
+    }
+ 
+    removeConnectedLines(element) {
+        if (!element) return;
+        
+        const rect = element.getBoundingClientRect();
+        const linesToRemove = [];
+        
+        this.lines.forEach(line => {
+            if (this.isPointInBox(line.startX, line.startY, rect) || 
+                this.isPointInBox(line.endX, line.endY, rect)) {
+                linesToRemove.push(line);
+            }
+        });
+        
+        linesToRemove.forEach(line => this.removeLine(line));
+    }
  
     cleanup() {
         this.clearAllLines();
@@ -319,4 +368,4 @@ export class LineManager {
             this.svgContainer = null;
         }
     }
- }
+}

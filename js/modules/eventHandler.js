@@ -9,6 +9,9 @@ import {
     startLineDrawing,
     startFreeLineDrawing,
     handleShapeCreation,
+    handleLineHandleDrag,
+    endLineHandleDrag,
+    moveSelectedLines
 } from './eventLogic.js';
 
 import { TOOL_TYPES } from '../utils/constants.js';
@@ -37,14 +40,37 @@ export class EventHandler {
 
     handleMouseDown(e) {
         const target = e.target;
+        const rect = this.tool.canvas.getBoundingClientRect();
+        this.lastX = e.clientX - rect.left;
+        this.lastY = e.clientY - rect.top;
 
         if (target.classList.contains('text-content')) {
             return;
         }
 
-        if (target.tagName === 'path' || target.classList.contains('line-handle')) {
-            handleLineSelection(e, target, this.tool, startDragging, startLineHandleDrag);
-            return;
+        // Handle line handle (corner) drag
+        if (target.classList.contains('line-handle')) {
+            const lineInfo = this.tool.lineManager.getLineFromHandle(target);
+            if (lineInfo) {
+                startLineHandleDrag(e, lineInfo.line, lineInfo.position, this.tool);
+                e.stopPropagation();
+                return;
+            }
+        }
+
+        // Line selection (path element)
+        if (target.tagName === 'path') {
+            const line = this.tool.lineManager.getLineByElement(target);
+            if (line) {
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    this.tool.selectionManager.toggleSelection(target, false);
+                } else {
+                    this.tool.lineManager.selectLine(line);
+                    this.tool.selectionManager.toggleSelection(target, true);
+                }
+                startDragging(e, this.tool);
+                return;
+            }
         }
 
         if (target.classList.contains('resize-handle')) {
@@ -95,37 +121,9 @@ export class EventHandler {
         const currentX = e.clientX - rect.left;
         const currentY = e.clientY - rect.top;
 
+        // Handle line handle dragging - resize or reposition line
         if (this.tool.isDraggingLineHandle && this.tool.lineHandleDragData) {
-            const { line, handlePosition, initialMouseX, initialMouseY, initialStartX, initialStartY, initialEndX, initialEndY } = this.tool.lineHandleDragData;
-
-            const dx = currentX - initialMouseX;
-            const dy = currentY - initialMouseY;
-
-            let newStartX = initialStartX;
-            let newStartY = initialStartY;
-            let newEndX = initialEndX;
-            let newEndY = initialEndY;
-
-            switch (handlePosition) {
-                case 'nw':
-                    newStartX += dx;
-                    newStartY += dy;
-                    break;
-                case 'ne':
-                    newEndX += dx;
-                    newStartY += dy;
-                    break;
-                case 'se':
-                    newEndX += dx;
-                    newEndY += dy;
-                    break;
-                case 'sw':
-                    newStartX += dx;
-                    newEndY += dy;
-                    break;
-            }
-
-            this.tool.lineManager.updateLine(line, newStartX, newStartY, newEndX, newEndY);
+            handleLineHandleDrag(e, this.tool);
             return;
         }
 
@@ -134,14 +132,36 @@ export class EventHandler {
             return;
         }
 
+        // Handle dragging of selected elements, including lines
         if (this.tool.isDragging && this.tool.selectionManager.selectedElements.size > 0) {
             const dx = currentX - this.lastX;
             const dy = currentY - this.lastY;
 
             if (dx !== 0 || dy !== 0) {
-                this.tool.selectionManager.moveSelectedElements(dx, dy);
+                // Move all selected elements
+                this.tool.selectionManager.selectedElements.forEach(element => {
+                    if (element instanceof SVGPathElement) {
+                        const line = this.tool.lineManager.getLineByElement(element);
+                        if (line) {
+                            this.tool.lineManager.moveLine(line, dx, dy);
+                        }
+                    } else {
+                        const currentLeft = parseInt(element.style.left) || 0;
+                        const currentTop = parseInt(element.style.top) || 0;
+                        
+                        const newX = currentLeft + dx;
+                        const newY = currentTop + dy;
+                        
+                        element.style.left = `${newX}px`;
+                        element.style.top = `${newY}px`;
+                        
+                        this.tool.lineManager.updateConnectedLines(element);
+                    }
+                });
+                
                 this.lastX = currentX;
                 this.lastY = currentY;
+                this.tool.hasUnsavedChanges = true;
             }
             return;
         }
@@ -177,13 +197,9 @@ export class EventHandler {
     }
 
     handleMouseUp(e) {
+        // Handle line handle dragging finish
         if (this.tool.isDraggingLineHandle) {
-            const { line } = this.tool.lineHandleDragData;
-            if (line) {
-                this.tool.lineManager.selectLine(line);
-            }
-            this.tool.isDraggingLineHandle = false;
-            this.tool.lineHandleDragData = null;
+            endLineHandleDrag(this.tool);
         }
 
         if (this.tool.selectionManager.isSelectionDrag) {
@@ -207,6 +223,7 @@ export class EventHandler {
                 );
                 this.tool.temporaryLine = null;
             }
+            this.tool.hasUnsavedChanges = true;
         }
 
         this.tool.isDragging = false;

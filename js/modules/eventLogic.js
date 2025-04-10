@@ -21,7 +21,7 @@ export const setupEventListeners = (tool, handleMouseDown, handleMouseMove, hand
 
 export const handleLineSelection = (e, target, tool, startDragging, startLineHandleDrag) => {
     if (target.tagName === 'path') {
-        const line = tool.lineManager.lines.find(l => l.element === target);
+        const line = tool.lineManager.getLineByElement(target);
         if (line) {
             if (e.shiftKey || e.ctrlKey || e.metaKey) {
                 tool.selectionManager.toggleSelection(target, false);
@@ -32,13 +32,13 @@ export const handleLineSelection = (e, target, tool, startDragging, startLineHan
             startDragging(e, tool);
         }
     } else if (target.classList.contains('line-handle')) {
-        const line = Array.from(tool.lineManager.lineHandles.entries())
-            .find(([_, handles]) => Object.values(handles).includes(target))?.[0];
-
-        if (line) {
-            const handlePosition = Array.from(target.classList)
-                .find(cls => ['nw', 'ne', 'se', 'sw'].includes(cls));
-            startLineHandleDrag(e, line, handlePosition, tool);
+        const lineInfo = tool.lineManager.getLineFromHandle(target);
+        if (lineInfo) {
+            const rect = tool.canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            startLineHandleDrag(e, lineInfo.line, lineInfo.position, tool);
         }
     }
 };
@@ -108,8 +108,16 @@ export const startLineDrawing = (e, connectionPoint, tool) => {
 export const startFreeLineDrawing = (e, tool) => {
     tool.isDrawingLine = true;
     const rect = tool.canvas.getBoundingClientRect();
-    tool.lineStartX = e.clientX - rect.left;
-    tool.lineStartY = e.clientY - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Apply grid snapping if enabled
+    const snapped = tool.gridHelper.enabled ? 
+        tool.gridHelper.snapPosition(x, y) : 
+        { x, y };
+    
+    tool.lineStartX = snapped.x;
+    tool.lineStartY = snapped.y;
 };
 
 export const handleShapeCreation = (e, tool) => {
@@ -120,4 +128,85 @@ export const handleShapeCreation = (e, tool) => {
     if (newShape) {
         tool.selectionManager.toggleSelection(newShape, true);
     }
+};
+
+export const handleLineHandleDrag = (e, tool) => {
+    if (!tool.isDraggingLineHandle || !tool.lineHandleDragData) return;
+    
+    const rect = tool.canvas.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    const { line, handlePosition, initialMouseX, initialMouseY, initialStartX, initialStartY, initialEndX, initialEndY } = tool.lineHandleDragData;
+
+    const dx = currentX - initialMouseX;
+    const dy = currentY - initialMouseY;
+
+    let newStartX = initialStartX;
+    let newStartY = initialStartY;
+    let newEndX = initialEndX;
+    let newEndY = initialEndY;
+
+    // Apply transformations based on which handle is being dragged
+    switch (handlePosition) {
+        case 'nw':
+            newStartX += dx;
+            newStartY += dy;
+            break;
+        case 'ne':
+            newEndX += dx;
+            newStartY += dy;
+            break;
+        case 'se':
+            newEndX += dx;
+            newEndY += dy;
+            break;
+        case 'sw':
+            newStartX += dx;
+            newEndY += dy;
+            break;
+    }
+
+    // Apply grid snapping if enabled
+    if (tool.gridHelper.enabled) {
+        newStartX = tool.gridHelper.snapToGrid(newStartX);
+        newStartY = tool.gridHelper.snapToGrid(newStartY);
+        newEndX = tool.gridHelper.snapToGrid(newEndX);
+        newEndY = tool.gridHelper.snapToGrid(newEndY);
+    }
+
+    tool.lineManager.updateLine(line, newStartX, newStartY, newEndX, newEndY);
+    tool.hasUnsavedChanges = true;
+};
+
+export const endLineHandleDrag = (tool) => {
+    if (tool.isDraggingLineHandle && tool.lineHandleDragData) {
+        const { line } = tool.lineHandleDragData;
+        if (line) {
+            tool.lineManager.selectLine(line);
+        }
+        tool.isDraggingLineHandle = false;
+        tool.lineHandleDragData = null;
+    }
+};
+
+export const moveSelectedLines = (dx, dy, tool) => {
+    tool.selectionManager.selectedElements.forEach(element => {
+        if (element instanceof SVGPathElement) {
+            const line = tool.lineManager.getLineByElement(element);
+            if (line) {
+                // Apply grid snapping if enabled
+                let newDx = dx;
+                let newDy = dy;
+                
+                if (tool.gridHelper.enabled) {
+                    const snappedStart = tool.gridHelper.snapPosition(line.startX + dx, line.startY + dy);
+                    newDx = snappedStart.x - line.startX;
+                    newDy = snappedStart.y - line.startY;
+                }
+                
+                tool.lineManager.moveLine(line, newDx, newDy);
+            }
+        }
+    });
 };
