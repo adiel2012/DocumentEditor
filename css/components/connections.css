@@ -1,0 +1,42 @@
+/* Connection Points */
+.connection-point {
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1px solid #333;
+  border-radius: 50%;
+  position: absolute;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.connection-point[data-position="top"] {
+  top: -4px;
+  left: calc(50% - 4px);
+}
+
+.connection-point[data-position="right"] {
+  right: -4px;
+  top: calc(50% - 4px);
+}
+
+.connection-point[data-position="bottom"] {
+  bottom: -4px;
+  left: calc(50% - 4px);
+}
+
+.connection-point[data-position="left"] {
+  left: -4px;
+  top: calc(50% - 4px);
+}
+
+.connection-point:hover {
+  transform: scale(1.2);
+  background: #e3f2fd;
+  border-color: #2196f3;
+}
+
+/* Line Tool Active State */
+.line-tool-active .connection-point {
+  border-color: #2196f3;
+}

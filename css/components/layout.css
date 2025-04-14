@@ -1,0 +1,28 @@
+/* App layout styles */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Documents Container */
+#documents-container {
+  flex: 1;
+  position: relative;
+  background: #eee;
+  overflow: hidden;
+}
+
+.document {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: white;
+  display: none;
+}
+
+.document.active {
+  display: block;
+}

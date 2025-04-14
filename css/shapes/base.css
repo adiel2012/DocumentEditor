@@ -1,0 +1,10 @@
+/* Base Shape Styles */
+.shape {
+  position: absolute;
+  background: white;
+  border: 2px solid #333;
+  cursor: move;
+  user-select: none;
+  min-width: 100px;
+  min-height: 60px;
+}

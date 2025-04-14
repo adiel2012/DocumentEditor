@@ -1,5 +1,5 @@
-import { ShapeFactory } from './shapes.js';
-import { LineManager } from './lines.js';
+import { ShapeFactory } from './shapes/ShapeFactory.js';
+import { LineManager } from './lines/LineManager.js';
 import { EventHandler } from './eventHandler.js';
 import { GridHelper } from './gridHelper.js';
 import { SelectionManager } from './selectionManager.js';
@@ -109,11 +109,18 @@ class DiagramTool {
         }
     }
 
-    createShape(x, y, type = null) {
+    createShape(x, y, type = null, width = null, height = null, data = null) {
         const actualType = type || this.currentTool;
         console.log('Creating shape of type:', actualType);
         const snapped = this.gridHelper.snapPosition(x, y);
-        const shape = ShapeFactory.createShape(actualType, snapped.x, snapped.y);
+        const shape = ShapeFactory.createShape(
+            actualType, 
+            snapped.x, 
+            snapped.y, 
+            width, 
+            height,
+            data
+        );
         
         if (!shape) {
             console.error('Failed to create shape of type:', actualType);
@@ -127,21 +134,29 @@ class DiagramTool {
         return shape;
     }
 
+    // FUTURE REFACTORING NOTE:
+    // The following methods are kept for backwards compatibility
+    // In a future refactoring, we should:
+    // 1. Store Shape objects instead of DOM elements in this.elements
+    // 2. Delegate DOM manipulation to the Shape classes
+    // 3. Update all references to use Shape objects' methods
+    
     selectElement(element) {
-        // Deprecated - use selectionManager instead
         this.selectionManager.toggleSelection(element, true);
     }
 
     deselectAll() {
-        // Deprecated - use selectionManager instead
         this.selectionManager.clearSelection();
     }
 
     deleteSelectedElement() {
-        // Deprecated - use selectionManager instead
         this.selectionManager.deleteSelectedElements();
     }
 
+    // FUTURE REFACTORING:
+    // These methods directly manipulate the DOM. In a future refactoring,
+    // this should be done through Shape object methods instead.
+    
     moveElement(element, x, y) {
         if (!element) return;
         
@@ -176,38 +191,30 @@ class DiagramTool {
     async getSerializableData() {
         try {
             console.log('Starting serialization of diagram data');
-            // Create a promise array for processing images
-            const imageProcessingPromises = this.elements.map(async element => {
+            
+            // Process elements
+            const elementPromises = this.elements.map(async element => {
                 try {
-                    if (element.classList.contains('text')) {
-                        const textContent = element.querySelector('.text-content');
-                        return {
-                            type: 'text',
-                            x: parseInt(element.style.left),
-                            y: parseInt(element.style.top),
-                            width: element.offsetWidth,
-                            height: element.offsetHeight,
-                            content: textContent ? textContent.innerText : ''
-                        };
-                    } else if (element.classList.contains('image')) {
+                    // Get common properties
+                    const baseData = {
+                        type: this.getElementType(element),
+                        x: parseInt(element.style.left) || 0,
+                        y: parseInt(element.style.top) || 0,
+                        width: element.offsetWidth,
+                        height: element.offsetHeight
+                    };
+                    
+                    // Special handling for image content that might need async processing
+                    if (baseData.type === 'image') {
                         const img = element.querySelector('img');
-                        if (!img) {
-                            console.log('No image element found');
-                            return null;
-                        }
-                        // Check if image is the default placeholder
+                        if (!img) return null;
+                        
+                        // Default placeholder
                         if (img.src.startsWith('data:image/svg+xml')) {
-                            return {
-                                type: 'image',
-                                x: parseInt(element.style.left),
-                                y: parseInt(element.style.top),
-                                width: element.offsetWidth,
-                                height: element.offsetHeight,
-                                content: null // No image uploaded yet
-                            };
+                            return { ...baseData, content: null };
                         }
                         
-                        // Convert image to base64 if it's not already
+                        // External images need to be converted to base64
                         if (!img.src.startsWith('data:')) {
                             try {
                                 const response = await fetch(img.src);
@@ -217,45 +224,37 @@ class DiagramTool {
                                     reader.onloadend = () => resolve(reader.result);
                                     reader.readAsDataURL(blob);
                                 });
-                                return {
-                                    type: 'image',
-                                    x: parseInt(element.style.left),
-                                    y: parseInt(element.style.top),
-                                    width: element.offsetWidth,
-                                    height: element.offsetHeight,
-                                    content: base64
-                                };
+                                return { ...baseData, content: base64 };
                             } catch (error) {
                                 console.error('Error converting image to base64:', error);
                                 return null;
                             }
                         }
-                        return {
-                            type: 'image',
-                            x: parseInt(element.style.left),
-                            y: parseInt(element.style.top),
-                            width: element.offsetWidth,
-                            height: element.offsetHeight,
-                            content: img.src
-                        };
-                    } else if (element.classList.contains('rectangle')) {
-                        return {
-                            type: 'rectangle',
-                            x: parseInt(element.style.left),
-                            y: parseInt(element.style.top),
-                            width: element.offsetWidth,
-                            height: element.offsetHeight
+                        
+                        return { ...baseData, content: img.src };
+                    } 
+                    // Handle text content
+                    else if (baseData.type === 'text') {
+                        const textContent = element.querySelector('.text-content');
+                        return { 
+                            ...baseData, 
+                            content: textContent ? textContent.innerText : '' 
                         };
                     }
-                    return null;
+                    // Handle other shape types
+                    // (Add specific handling for new shape types here)
+                    
+                    // Return basic data for other types
+                    return baseData;
+                    
                 } catch (error) {
                     console.error('Error processing element:', error);
                     return null;
                 }
             });
 
-            // Wait for all image processing to complete
-            const elements = await Promise.all(imageProcessingPromises);
+            // Wait for all element processing to complete
+            const elements = await Promise.all(elementPromises);
             console.log('Elements processed:', elements.length);
 
             return {
@@ -266,6 +265,16 @@ class DiagramTool {
             console.error('Error in getSerializableData:', error);
             throw error;
         }
+    }
+    
+    // Helper to get element type from DOM element
+    getElementType(element) {
+        for (const type of Object.values(SHAPE_TYPES)) {
+            if (element.classList.contains(type)) {
+                return type;
+            }
+        }
+        return null;
     }
 
     loadFromData(data) {
@@ -282,31 +291,18 @@ class DiagramTool {
             data.elements.forEach((elementData, index) => {
                 try {
                     console.log(`Processing element ${index}:`, elementData);
-                    const shape = this.createShape(elementData.x, elementData.y, elementData.type);
+                    const shape = this.createShape(
+                        elementData.x, 
+                        elementData.y, 
+                        elementData.type, 
+                        elementData.width, 
+                        elementData.height, 
+                        elementData.content
+                    );
+                    
                     if (!shape) {
                         console.error(`Failed to create shape for element ${index}`);
                         return;
-                    }
-                    
-                    shape.style.width = `${elementData.width}px`;
-                    shape.style.height = `${elementData.height}px`;
-
-                    if (elementData.content !== null && elementData.content !== undefined) {
-                        if (elementData.type === 'text') {
-                            const textContent = shape.querySelector('.text-content');
-                            if (textContent) {
-                                textContent.innerText = elementData.content;
-                            } else {
-                                console.error(`Text content element not found for element ${index}`);
-                            }
-                        } else if (elementData.type === 'image') {
-                            const img = shape.querySelector('img');
-                            if (img && elementData.content) {
-                                img.src = elementData.content;
-                            } else {
-                                console.error(`Image element not found for element ${index}`);
-                            }
-                        }
                     }
                 } catch (elementError) {
                     console.error(`Error processing element ${index}:`, elementError);

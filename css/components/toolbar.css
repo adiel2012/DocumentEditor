@@ -1,0 +1,77 @@
+/* Main Toolbar */
+#main-toolbar {
+  background: #333;
+  padding: 8px;
+  display: flex;
+  gap: 10px;
+}
+
+.main-button {
+  padding: 6px 12px;
+  background: #444;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.main-button:hover {
+  background: #555;
+}
+
+/* Drawing Toolbar */
+#drawing-toolbar {
+  background: #f0f0f0;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+.tool-button {
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  position: relative;
+}
+
+.tool-button:hover {
+  background: #e0e0e0;
+}
+
+.tool-button.active {
+  background: #2196f3;
+  color: white;
+  border-color: #1976d2;
+}
+
+.tool-button svg {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#delete-button {
+  background: #ffebee;
+  border-color: #ffcdd2;
+}
+
+#delete-button:hover {
+  background: #ffcdd2;
+}
+
+#delete-button.active {
+  background: #ef5350;
+  border-color: #e53935;
+}

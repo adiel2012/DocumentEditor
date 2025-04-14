@@ -1,0 +1,16 @@
+/* Text Shape Styles */
+.shape.text {
+  min-width: 100px;
+  min-height: 30px;
+  border: 1px dashed #ccc;
+  background: transparent;
+}
+
+.shape.text .text-content {
+  cursor: text;
+  outline: none;
+  word-wrap: break-word;
+  padding: 5px;
+  width: 100%;
+  height: 100%;
+}

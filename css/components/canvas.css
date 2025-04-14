@@ -1,0 +1,22 @@
+/* Canvas Styles */
+.canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: white;
+  background-image:
+      linear-gradient(to right, #e0e0e0 1px, transparent 1px),
+      linear-gradient(to bottom, #e0e0e0 1px, transparent 1px),
+      linear-gradient(to right, #f0f0f0 1px, transparent 1px),
+      linear-gradient(to bottom, #f0f0f0 1px, transparent 1px);
+  background-size:
+      100px 100px,
+      100px 100px,
+      20px 20px,
+      20px 20px;
+  background-position: 0 0;
+}
+
+.canvas.hide-grid {
+  background-image: none;
+}
